@@ -1,0 +1,90 @@
+; while(1) {
+;     nextIP = ip + 3;
+;     a = code[ip];
+;     b = code[ip+1];
+;     c = code[ip+2];
+; 
+;     code[b] -= code[a]
+;     if (code[b] <= 0)
+;         nextIP = c
+;     ip = nextIP
+; }
+; a  = eax
+; b  = ebx
+; c  = ecx
+; ip = esi
+; 
+; base = esi = 0x30000000 (+ size of interpreter)
+; ebp  = scratch register
+; edi  = nextIP
+; a = code[ip]
+; b = code[ip+1]
+; c = code[ip+2]
+; nextIP = ip + 3
+
+init:
+; 0x30000000
+mov esi, esp
+inc eax
+add eax, eax
+add eax, eax
+add eax, eax
+add eax, eax
+add eax, eax
+add eax, eax
+add eax, eax
+add eax, eax
+add eax, eax
+add eax, eax
+add eax, eax
+add eax, eax
+add esi, eax   ; 0x30001008
+
+interp:
+; 0x30000078
+lodsd
+mov ebp, eax
+lodsd
+mov ebx, eax
+lodsd
+mov ecx, eax
+mov eax, ebp
+
+; code[b] -= code[a]
+mov ebp, [rbx]
+sub ebp, [rax]
+mov [rbx], ebp
+
+;; if (code[b] <= 0) nextIP = c
+; c -= nextIP
+; c *= (code[b] < 0)
+; c *= (code[b] == 0)
+; ip = nextIP + c
+; c -= nextIP
+sub ecx, esi
+
+; c *= (code[b] < 0)
+; edi = code[b] == 0
+mov ebp, [rbx]
+xor eax, eax
+neg ebp          ; C == 0 if b == 0
+cmc              ; C == 1 if b == 0
+adc eax, eax     ; eax == 1 if b == 0
+xor edx, edx     
+sub edx, eax     ; edx == -1 if b == 0, else edx == 0
+
+; c *= (code[b] == 0)
+; edi = code[b] < 0
+mov ebp, [rbx]
+xor eax, eax
+sal ebp, 1
+adc eax, eax      ; eax == 1 if b < 0
+xor ebp, ebp
+sub ebp, eax      ; ebp == -1 if b < 0
+or  ebp, edx      ; combine masks  b < 0 || b == 0 
+and ecx, ebp      ; ecx unchanged if b < 0
+
+; ip = c + nextIP
+add esi, ecx      ; ecx = b <= 0 ? c : 0
+
+pop rsp ; we need to put the stack start addr here
